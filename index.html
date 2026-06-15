@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>സ്ക്രാബിൾ — Scrabble Malayalam</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Malayalam:wght@400;700&family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;
+  background:linear-gradient(160deg,#1a472a 0%,#2d5016 60%,#4a3000 100%);
+  font-family:'Noto Sans Malayalam','Noto Sans',sans-serif;
+  color:#f5e6c8;padding:10px;
+}
+/* ── Lobby ── */
+.lobby-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.card{background:rgba(0,0,0,.38);border-radius:16px;padding:28px;width:100%;max-width:380px}
+.card h2{color:#FFD700;font-size:18px;margin-bottom:16px;text-align:center}
+.card label{font-size:12px;color:#c8b560;display:block;margin-bottom:5px}
+.card input{display:block;width:100%;padding:10px 14px;border-radius:10px;border:2px solid #8B6914;background:#2d1f0a;color:#f5e6c8;font-size:15px;margin-bottom:14px;font-family:inherit;outline:none}
+.card input:focus{border-color:#FFD700}
+.sep{display:flex;align-items:center;gap:10px;margin:14px 0}
+.sep-line{flex:1;height:1px;background:rgba(255,255,255,.12)}
+.sep span{font-size:12px;color:#666}
+.error{color:#f87171;font-size:12px;text-align:center;margin-top:8px;min-height:18px}
+/* ── Waiting ── */
+.code-box{background:rgba(0,0,0,.5);border-radius:16px;padding:24px 40px;margin:20px 0;text-align:center}
+.code-display{font-size:44px;font-weight:700;letter-spacing:10px;color:#FFD700}
+/* ── Game ── */
+#header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.score-box{text-align:center;background:rgba(0,0,0,.3);border-radius:8px;padding:3px 11px;border:1px solid transparent;transition:all .3s}
+.score-box.active{background:rgba(255,215,0,.15);border-color:#FFD700}
+.slabel{font-size:10px;color:#c8b560;white-space:nowrap}
+.sval{font-size:20px;font-weight:700}
+#msg{background:rgba(0,0,0,.4);border-radius:8px;padding:7px 12px;margin-bottom:8px;font-size:12px;text-align:center;border-left:3px solid #FFD700;min-height:32px}
+#msg.myturn{border-color:#4ade80}
+/* ── Board ── */
+#board-wrap{overflow-x:auto;margin-bottom:10px}
+#board{display:grid;gap:1px;background:#5a3e1b;border:3px solid #8B6914;border-radius:6px;padding:3px;width:fit-content;margin:0 auto}
+.cell{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:2px;border:1px solid rgba(255,255,255,.1);cursor:default;transition:background .1s}
+.cell.placeable:hover{filter:brightness(1.14);cursor:pointer}
+.cell.placed-now{box-shadow:0 0 5px rgba(255,200,0,.8)}
+.cell-l{font-weight:700;color:#2c1810;line-height:1}
+.cell-v{color:#5a3010;line-height:1}
+/* ── Rack ── */
+#rack-label{font-size:11px;color:#c8b560;margin-bottom:5px;text-align:center}
+#rack{display:flex;justify-content:center;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.tile{width:43px;height:51px;background:#deb887;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:2px solid #8B6914;box-shadow:0 2px 4px rgba(0,0,0,.3);transition:all .15s}
+.tile:hover{filter:brightness(1.07)}
+.tile.sel{background:#FFD700;border-color:#ff6600;box-shadow:0 0 10px rgba(255,165,0,.7);transform:translateY(-5px)}
+.tile.ex-sel{background:#3b82f6;border-color:#1d4ed8}
+.tile-l{font-size:19px;font-weight:700;color:#2c1810;line-height:1}
+.tile-v{font-size:11px;color:#5a3010}
+/* ── Buttons ── */
+#btns{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+button{border:none;border-radius:20px;padding:9px 16px;font-size:12px;font-weight:700;cursor:pointer;color:#fff;font-family:inherit;transition:opacity .15s}
+button:disabled{opacity:.38;cursor:not-allowed}
+.g{background:linear-gradient(135deg,#22c55e,#16a34a)}
+.a{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.gr{background:linear-gradient(135deg,#6b7280,#4b5563)}
+.b{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}
+.p{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}
+.yw{background:linear-gradient(135deg,#FFD700,#FFA500);color:#1a1a1a}
+.full{width:100%;font-size:14px;padding:12px 0;border-radius:12px;margin-bottom:8px}
+#legend{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;font-size:11px;color:#c8b560;margin-top:6px}
+/* ── Screens ── */
+.screen{display:none}.screen.on{display:block}
+</style>
+</head>
+<body>
+
+<!-- ── LOBBY ─────────────────────────────────────────────────────────────── -->
+<div id="s-lobby" class="screen on">
+  <div class="lobby-wrap">
+    <div style="font-size:58px;margin-bottom:8px">🎲</div>
+    <h1 style="font-size:40px;font-weight:700;color:#FFD700;margin-bottom:4px;text-shadow:2px 2px 8px rgba(0,0,0,.5)">സ്ക്രാബിൾ</h1>
+    <p style="color:#c8b560;margin-bottom:28px;font-size:15px">Scrabble Malayalam · Multijoueur en ligne</p>
+    <div class="card">
+      <label>Votre prénom</label>
+      <input id="l-name" placeholder="ex: Arun" maxlength="20"/>
+      <button class="yw full" onclick="goCreate()">✨ Créer une partie</button>
+      <div class="sep"><div class="sep-line"></div><span>ou</span><div class="sep-line"></div></div>
+      <label>Code de la partie</label>
+      <input id="l-code" placeholder="ex: A3B9KZ" maxlength="8" style="text-align:center;letter-spacing:4px;font-size:20px;font-weight:700;color:#FFD700"/>
+      <button class="b full" onclick="goJoin()">🔗 Rejoindre</button>
+      <div class="error" id="l-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── WAITING ────────────────────────────────────────────────────────────── -->
+<div id="s-waiting" class="screen">
+  <div class="lobby-wrap">
+    <div style="font-size:52px;margin-bottom:12px">⏳</div>
+    <h2 style="color:#FFD700;font-size:22px;margin-bottom:8px">En attente du joueur 2…</h2>
+    <p style="color:#c8b560;margin-bottom:4px">Envoyez ce code à votre adversaire :</p>
+    <div class="code-box"><div class="code-display" id="w-code">——</div></div>
+    <button class="gr" style="margin-bottom:16px" onclick="copyCode()">📋 Copier le code</button>
+    <p style="font-size:12px;color:#888;text-align:center">Votre ami ouvre <strong style="color:#f5e6c8">la même page</strong> et entre ce code.</p>
+    <p style="font-size:11px;color:#666;margin-top:8px">En attente de connexion…</p>
+  </div>
+</div>
+
+<!-- ── GAME ───────────────────────────────────────────────────────────────── -->
+<div id="s-game" class="screen">
+  <div id="header">
+    <h1 style="font-size:20px;font-weight:700;color:#FFD700">സ്ക്രാബിൾ</h1>
+    <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+      <div class="score-box" id="sb-p1"><div class="slabel" id="lbl-p1">J1</div><div class="sval" id="sc-p1" style="color:#4ade80">0</div></div>
+      <div class="score-box" id="sb-p2"><div class="slabel" id="lbl-p2">J2</div><div class="sval" id="sc-p2" style="color:#f87171">0</div></div>
+      <div class="score-box"><div class="slabel">SAC</div><div class="sval" id="sc-bag">0</div></div>
+      <div class="score-box"><div class="slabel">CODE</div><div class="sval" id="sc-code" style="font-size:13px;letter-spacing:2px;color:#FFD700">——</div></div>
+    </div>
+  </div>
+  <div id="msg">…</div>
+  <div id="board-wrap"><div id="board"></div></div>
+  <div id="rack-label">Votre chevalet</div>
+  <div id="rack"></div>
+  <div id="btns">
+    <button class="g" id="btn-val" onclick="confirmWord()">✅ Valider</button>
+    <button class="a" id="btn-rec" onclick="recallTiles()">↩ Rappeler</button>
+    <button class="gr" id="btn-pass" onclick="passTurn()">⏭ Passer</button>
+    <button class="b" id="btn-ex" onclick="toggleExchange()">🔄 Échanger</button>
+    <button class="p" onclick="goLobby()">🔁 Quitter</button>
+  </div>
+  <div id="legend"><span>🟥 Mot×3</span><span>🟧 Mot×2</span><span>🟦 Lettre×3</span><span>🟩 Lettre×2</span><span>⭐ Centre</span></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+const TILES={
+  'അ':{v:1,n:9},'ആ':{v:2,n:4},'ഇ':{v:1,n:6},'ഈ':{v:2,n:3},'ഉ':{v:2,n:4},
+  'ഊ':{v:3,n:2},'എ':{v:1,n:5},'ഏ':{v:2,n:3},'ഒ':{v:2,n:4},'ഓ':{v:3,n:2},
+  'ക':{v:1,n:7},'ഖ':{v:4,n:2},'ഗ':{v:3,n:3},'ഘ':{v:5,n:1},'ച':{v:2,n:5},
+  'ജ':{v:4,n:2},'ട':{v:3,n:3},'ത':{v:1,n:7},'ദ':{v:3,n:3},'ന':{v:1,n:7},
+  'പ':{v:2,n:5},'ബ':{v:4,n:2},'മ':{v:2,n:5},'യ':{v:3,n:3},'ര':{v:1,n:6},
+  'ല':{v:1,n:6},'വ':{v:2,n:5},'ശ':{v:4,n:2},'സ':{v:2,n:4},'ഹ':{v:5,n:2},
+  'ള':{v:3,n:3},'ഴ':{v:5,n:1},'റ':{v:2,n:4},'ണ':{v:3,n:3},'✦':{v:0,n:2},
+};
+const N=15;
+const SQ_MAP={};
+[[0,0],[0,7],[0,14],[7,0],[7,14],[14,0],[14,7],[14,14]].forEach(([r,c])=>SQ_MAP[r+','+c]='TW');
+[[1,1],[2,2],[3,3],[4,4],[10,10],[11,11],[12,12],[13,13],[1,13],[2,12],[3,11],[4,10],[10,4],[11,3],[12,2],[13,1],[7,7]].forEach(([r,c])=>SQ_MAP[r+','+c]='DW');
+[[1,5],[1,9],[5,1],[5,5],[5,9],[5,13],[9,1],[9,5],[9,9],[9,13],[13,5],[13,9]].forEach(([r,c])=>SQ_MAP[r+','+c]='TL');
+[[0,3],[0,11],[2,6],[2,8],[3,0],[3,7],[3,14],[6,2],[6,6],[6,8],[6,12],[7,3],[7,11],[8,2],[8,6],[8,8],[8,12],[11,0],[11,7],[11,14],[12,6],[12,8],[14,3],[14,11]].forEach(([r,c])=>SQ_MAP[r+','+c]='DL');
+const SQ_STYLE={TW:{bg:'#c0392b',lbl:'3M'},DW:{bg:'#e67e22',lbl:'2M'},TL:{bg:'#2980b9',lbl:'3L'},DL:{bg:'#27ae60',lbl:'2L'}};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+let ws=null, myRole=null, gameCode=null;
+let gs=null; // game state shared with server
+let selected=null, placed=[], exMode=false, exSel=[];
+let cellSz=34;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ═══════════════════════════════════════════════════════════════════════════════
+function connect(onopen){
+  const proto=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${proto}://${location.host}`);
+  ws.onopen=onopen;
+  ws.onmessage=e=>{
+    const msg=JSON.parse(e.data);
+    handleServer(msg);
+  };
+  ws.onclose=()=>{ setMsg('⚠️ Connexion perdue. Rechargez la page.'); };
+}
+
+function sendWS(obj){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(obj)); }
+
+function handleServer(msg){
+  if(msg.type==='created'){
+    gameCode=msg.code;
+    document.getElementById('w-code').textContent=msg.code;
+    document.getElementById('sc-code').textContent=msg.code;
+    show('s-waiting');
+  }
+  else if(msg.type==='opponent_joined'){
+    gs=msg.state;
+    initGame();
+  }
+  else if(msg.type==='joined'){
+    gs=msg.state;
+    initGame();
+  }
+  else if(msg.type==='update'){
+    gs=msg.state;
+    placed=[];selected=null;exMode=false;exSel=[];
+    renderAll();
+    const isMyTurn=gs.currentTurn===myRole;
+    const myName=gs[myRole].name;
+    const oppName=gs[myRole==='p1'?'p2':'p1'].name;
+    setMsg(isMyTurn?`▶ À vous de jouer, ${myName} !`:`⏳ Tour de ${oppName}…`, isMyTurn);
+  }
+  else if(msg.type==='error'){
+    document.getElementById('l-err').textContent=msg.reason;
+  }
+  else if(msg.type==='opponent_left'){
+    setMsg('⚠️ Votre adversaire a quitté la partie.');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LOBBY ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+function goCreate(){
+  const name=document.getElementById('l-name').value.trim();
+  if(!name){document.getElementById('l-err').textContent='Entrez votre prénom.';return;}
+  document.getElementById('l-err').textContent='';
+  myRole='p1';
+  connect(()=>{
+    const bag=createBag();
+    const rack=bag.splice(0,7);
+    const state={
+      version:0,
+      board:emptyBoard(),
+      bag,
+      p1:{name,rack,score:0},
+      p2:{name:null,rack:[],score:0},
+      currentTurn:'p1',
+      passCount:0,
+      gameOver:false,
+    };
+    gs=state;
+    sendWS({type:'create',state});
+  });
+}
+
+function goJoin(){
+  const name=document.getElementById('l-name').value.trim();
+  const code=document.getElementById('l-code').value.trim().toUpperCase();
+  if(!name){document.getElementById('l-err').textContent='Entrez votre prénom.';return;}
+  if(!code){document.getElementById('l-err').textContent='Entrez le code de la partie.';return;}
+  document.getElementById('l-err').textContent='';
+  myRole='p2';
+  gameCode=code;
+  connect(()=>{
+    // We'll get state from server, draw p2 rack inside handler
+    sendWS({type:'join_request',code,name});
+    // But server needs current state to add p2 rack, so we handle it differently:
+    // server sends back the state, client adds p2 rack
+  });
+  // Override: server will send current state, then we add p2 rack and send update
+  ws.onmessage=e=>{
+    const msg=JSON.parse(e.data);
+    if(msg.type==='need_state'){
+      // Server doesn't know state; we need p1 to have sent it — already done via 'create'
+    } else if(msg.type==='current_state'){
+      // Server sends p1's state; we add p2
+      const state=msg.state;
+      const rack=state.bag.splice(0,7);
+      state.p2={name,rack,score:0};
+      state.currentTurn='p1';
+      state.version=(state.version||0)+1;
+      gs=state;
+      sendWS({type:'join',code,state});
+    } else if(msg.type==='error'){
+      document.getElementById('l-err').textContent=msg.reason;
+    } else {
+      // Normal handler
+      handleServer(msg);
+    }
+  };
+  sendWS({type:'get_state',code});
+}
+
+function goLobby(){ location.reload(); }
+
+function copyCode(){
+  const code=document.getElementById('w-code').textContent;
+  navigator.clipboard?.writeText(code).then(()=>alert('Code copié : '+code));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GAME INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+function initGame(){
+  document.getElementById('sc-code').textContent=gameCode||'——';
+  placed=[];selected=null;exMode=false;exSel=[];
+  computeCellSz();
+  buildBoard();
+  show('s-game');
+  renderAll();
+  const isMyTurn=gs.currentTurn===myRole;
+  const oppRole=myRole==='p1'?'p2':'p1';
+  setMsg(isMyTurn
+    ?`▶ À vous de jouer, ${gs[myRole].name} !`
+    :`⏳ Tour de ${gs[oppRole].name}…`, isMyTurn);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function createBag(){
+  const b=[];let id=0;
+  for(const [l,{v,n}] of Object.entries(TILES)) for(let i=0;i<n;i++) b.push({l,v,id:id++});
+  shuffle(b);return b;
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+function emptyBoard(){return Array.from({length:N},(_,r)=>Array.from({length:N},(_,c)=>({tile:null,locked:false})));}
+function sqType(r,c){return SQ_MAP[r+','+c]||null;}
+
+function calcScore(cells){
+  let ws2=0,wm=1;
+  for(const [r,c] of cells){
+    const cell=gs.board[r][c];
+    const v=cell.tile?cell.tile.v:0;
+    const t=sqType(r,c);
+    const isNew=placed.some(p=>p[0]===r&&p[1]===c);
+    if(isNew){
+      if(t==='TL') ws2+=v*3; else if(t==='DL') ws2+=v*2; else ws2+=v;
+      if(t==='TW') wm*=3; else if(t==='DW') wm*=2;
+    } else ws2+=v;
+  }
+  return ws2*wm;
+}
+
+function getWordCells(){
+  if(!placed.length) return [];
+  const rows=placed.map(p=>p[0]),cols=placed.map(p=>p[1]);
+  const sameRow=rows.every(r=>r===rows[0]);
+  if(sameRow){
+    const row=rows[0];
+    let s=Math.min(...cols),e=Math.max(...cols);
+    while(s>0&&gs.board[row][s-1].tile) s--;
+    while(e<N-1&&gs.board[row][e+1].tile) e++;
+    return Array.from({length:e-s+1},(_,i)=>[row,s+i]);
+  } else {
+    const col=cols[0];
+    let s=Math.min(...rows),e=Math.max(...rows);
+    while(s>0&&gs.board[s-1][col].tile) s--;
+    while(e<N-1&&gs.board[e+1][col].tile) e++;
+    return Array.from({length:e-s+1},(_,i)=>[s+i,col]);
+  }
+}
+
+function validate(){
+  if(!placed.length) return 'Aucune lettre placée.';
+  const rows=placed.map(p=>p[0]),cols=placed.map(p=>p[1]);
+  if(!rows.every(r=>r===rows[0])&&!cols.every(c=>c===cols[0])) return 'Lettres non alignées.';
+  const hasLocked=gs.board.some(r=>r.some(c=>c.locked));
+  if(!hasLocked){
+    if(!placed.some(p=>p[0]===7&&p[1]===7)) return 'Le premier mot doit passer par la case centrale ⭐.';
+  } else {
+    const ok=placed.some(([r,c])=>[[-1,0],[1,0],[0,-1],[0,1]].some(([dr,dc])=>{
+      const nr=r+dr,nc=c+dc;
+      return nr>=0&&nr<N&&nc>=0&&nc<N&&gs.board[nr][nc].locked;
+    }));
+    if(!ok) return 'Le mot doit toucher une lettre existante.';
+  }
+  const cells=getWordCells();
+  if(cells.some(([r,c])=>!gs.board[r][c].tile)) return 'Espace vide dans le mot.';
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+const isMyTurn=()=>gs&&gs.currentTurn===myRole&&!gs.gameOver&&!!gs.p2.name;
+
+function placeOnBoard(r,c){
+  if(!selected||!isMyTurn()||exMode) return;
+  if(gs.board[r][c].tile){setMsg('❌ Case déjà occupée !');return;}
+  gs.board[r][c].tile=selected;
+  gs[myRole].rack=gs[myRole].rack.filter(t=>t.id!==selected.id);
+  placed.push([r,c]);
+  selected=null;
+  renderAll();
+  setMsg('Lettre posée. Continuez ou validez.',true);
+}
+
+function recallTiles(){
+  if(!placed.length) return;
+  for(const [r,c] of placed){gs[myRole].rack.push(gs.board[r][c].tile);gs.board[r][c].tile=null;}
+  placed=[];selected=null;renderAll();setMsg('Lettres rappelées.',true);
+}
+
+function confirmWord(){
+  const err=validate(); if(err){setMsg('❌ '+err);return;}
+  const cells=getWordCells();
+  const pts=calcScore(cells);
+  const word=cells.map(([r,c])=>gs.board[r][c].tile.l).join('');
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(gs.board[r][c].tile) gs.board[r][c].locked=true;
+  gs[myRole].score=(gs[myRole].score||0)+pts;
+  placed=[];selected=null;
+  // draw
+  const need=7-gs[myRole].rack.length;
+  const drawn=gs.bag.splice(0,Math.min(need,gs.bag.length));
+  gs[myRole].rack.push(...drawn);
+  const opp=myRole==='p1'?'p2':'p1';
+  gs.currentTurn=opp;
+  gs.passCount=0;
+  gs.version=(gs.version||0)+1;
+  gs.message=`${gs[myRole].name} joue "${word}" (+${pts} pts) — Tour de ${gs[opp].name} !`;
+  sendWS({type:'update',state:gs});
+  renderAll();
+  setMsg(`✅ "${word}" — +${pts} pts ! En attente de l'adversaire…`);
+}
+
+function passTurn(){
+  recallTiles();
+  const opp=myRole==='p1'?'p2':'p1';
+  gs.passCount=(gs.passCount||0)+1;
+  gs.currentTurn=opp;
+  gs.version=(gs.version||0)+1;
+  gs.message=`${gs[myRole].name} passe. Tour de ${gs[opp].name}.`;
+  if(gs.passCount>=4){ gs.gameOver=true; gs.message=`Partie terminée ! ${gs.p1.name}: ${gs.p1.score} — ${gs.p2.name}: ${gs.p2.score}`; }
+  sendWS({type:'update',state:gs});
+  renderAll();
+  setMsg(gs.gameOver?gs.message:'Tour passé. En attente…');
+}
+
+function toggleExchange(){
+  if(exMode){
+    // confirm
+    if(!exSel.length){exMode=false;exSel=[];renderAll();setMsg('Échange annulé.',true);return;}
+    if(gs.bag.length<exSel.length){setMsg('❌ Pas assez de lettres dans le sac !');return;}
+    const keep=gs[myRole].rack.filter(t=>!exSel.find(e=>e.id===t.id));
+    gs.bag.push(...exSel); shuffle(gs.bag);
+    const drawn=gs.bag.splice(0,exSel.length);
+    gs[myRole].rack=[...keep,...drawn];
+    const opp=myRole==='p1'?'p2':'p1';
+    gs.currentTurn=opp;
+    gs.version=(gs.version||0)+1;
+    gs.message=`${gs[myRole].name} échange ${drawn.length} lettre(s). Tour de ${gs[opp].name}.`;
+    exMode=false;exSel=[];placed=[];selected=null;
+    sendWS({type:'update',state:gs});
+    renderAll();
+    setMsg('Lettres échangées. En attente…');
+  } else {
+    recallTiles();
+    exMode=true;exSel=[];renderAll();
+    setMsg('Cliquez les lettres à échanger, puis 🔄 Confirmer.',true);
+  }
+}
+
+function toggleExSel(tile){
+  const i=exSel.findIndex(t=>t.id===tile.id);
+  if(i>=0) exSel.splice(i,1); else exSel.push(tile);
+  renderRack();renderBtns();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════════════════
+function computeCellSz(){ cellSz=Math.min(36,Math.floor((Math.min(window.innerWidth-26,580))/N)); }
+
+function buildBoard(){
+  const bd=document.getElementById('board');
+  bd.innerHTML='';
+  bd.style.gridTemplateColumns=`repeat(${N},${cellSz}px)`;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const d=document.createElement('div');
+    d.className='cell';d.style.width=d.style.height=cellSz+'px';
+    d.id=`c${r}_${c}`;d.onclick=()=>placeOnBoard(r,c);
+    bd.appendChild(d);
+  }
+}
+
+function renderCell(r,c){
+  const d=document.getElementById(`c${r}_${c}`);
+  if(!d) return;
+  const cell=gs.board[r][c];
+  const isCenter=r===7&&c===7;
+  const isNew=placed.some(p=>p[0]===r&&p[1]===c);
+  const t=sqType(r,c);
+  d.className='cell';d.innerHTML='';
+  if(cell.tile){
+    d.style.background=isNew?'#f0d060':'#deb887';
+    if(isNew) d.classList.add('placed-now');
+    const l=document.createElement('span');l.className='cell-l';l.style.fontSize=(cellSz*.42)+'px';l.textContent=cell.tile.l;
+    const v=document.createElement('span');v.className='cell-v';v.style.fontSize=(cellSz*.22)+'px';v.textContent=cell.tile.v;
+    d.appendChild(l);d.appendChild(v);
+  } else {
+    if(isCenter){d.style.background='#3d7a52';d.style.border='2px solid #FFD700';const s=document.createElement('span');s.style.fontSize=(cellSz*.5)+'px';s.textContent='⭐';d.appendChild(s);}
+    else if(t&&SQ_STYLE[t]){d.style.background=SQ_STYLE[t].bg;const s=document.createElement('span');s.style.fontSize=(cellSz*.28)+'px';s.style.color='#fff';s.style.fontWeight='700';s.textContent=SQ_STYLE[t].lbl;d.appendChild(s);}
+    else d.style.background='#f5e6c8';
+    if(selected&&!cell.tile&&isMyTurn()) d.classList.add('placeable');
+  }
+}
+
+function renderBoard(){ for(let r=0;r<N;r++) for(let c=0;c<N;c++) renderCell(r,c); }
+
+function renderRack(){
+  const rack=gs[myRole].rack;
+  const div=document.getElementById('rack');div.innerHTML='';
+  rack.forEach(tile=>{
+    const t=document.createElement('div');t.className='tile';
+    if(selected&&selected.id===tile.id) t.classList.add('sel');
+    if(exMode&&exSel.find(e=>e.id===tile.id)) t.classList.add('ex-sel');
+    const l=document.createElement('span');l.className='tile-l';l.textContent=tile.l;
+    const v=document.createElement('span');v.className='tile-v';v.textContent=tile.v;
+    t.appendChild(l);t.appendChild(v);
+    t.onclick=()=>{ if(exMode) toggleExSel(tile); else{selected=(selected&&selected.id===tile.id)?null:tile;renderAll();} };
+    div.appendChild(t);
+  });
+  document.getElementById('rack-label').textContent=
+    exMode?`🔄 Sélectionnez les lettres à échanger (${exSel.length} choisie(s))`
+    :isMyTurn()?`Votre chevalet, ${gs[myRole].name} — cliquez une lettre puis une case`
+    :`⏳ Tour de l'adversaire — vos lettres sont cachées`;
+}
+
+function renderHeader(){
+  document.getElementById('lbl-p1').textContent=gs.p1.name+(gs.currentTurn==='p1'?' ▶':'');
+  document.getElementById('lbl-p2').textContent=(gs.p2.name||'?')+(gs.currentTurn==='p2'?' ▶':'');
+  document.getElementById('sc-p1').textContent=gs.p1.score||0;
+  document.getElementById('sc-p2').textContent=gs.p2.score||0;
+  document.getElementById('sc-bag').textContent=gs.bag.length;
+  document.getElementById('sb-p1').classList.toggle('active',gs.currentTurn==='p1');
+  document.getElementById('sb-p2').classList.toggle('active',gs.currentTurn==='p2');
+}
+
+function renderBtns(){
+  const mt=isMyTurn();
+  document.getElementById('btn-val').disabled=!mt||!placed.length;
+  document.getElementById('btn-rec').disabled=!placed.length;
+  document.getElementById('btn-pass').disabled=!mt;
+  document.getElementById('btn-ex').textContent=exMode?`🔄 Confirmer (${exSel.length})`:'🔄 Échanger';
+  document.getElementById('btn-ex').disabled=!mt&&!exMode;
+}
+
+function renderAll(){ if(!gs) return; renderHeader();renderBoard();renderRack();renderBtns(); }
+
+function setMsg(txt,mt=false){
+  const el=document.getElementById('msg');el.textContent=txt;
+  el.className=mt?'myturn':'';
+}
+
+function show(id){
+  ['s-lobby','s-waiting','s-game'].forEach(s=>document.getElementById(s).classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+
+window.addEventListener('resize',()=>{ computeCellSz(); if(gs){buildBoard();renderBoard();} });
+</script>
+</body>
+</html>
