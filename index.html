@@ -175,7 +175,8 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random
 function emptyBoard(){return Array.from({length:N},(_,r)=>Array.from({length:N},(_,c)=>({tile:null,locked:false})));}
 function sqType(r,c){return SQ_MAP[r+','+c]||null;}
 
-function calcScore(cells){
+// ── Score a single word (list of [r,c]) ──────────────────────────────────────
+function scoreWord(cells){
   let ws=0,wm=1;
   for(const [r,c] of cells){
     const cell=gs.board[r][c]; const v=cell.tile?cell.tile.v:0; const t=sqType(r,c);
@@ -185,20 +186,65 @@ function calcScore(cells){
   }
   return ws*wm;
 }
+function calcScore(cells){ return scoreWord(cells); }
 
-function getWordCells(){
+// ── Get ALL words formed this turn (main + cross words) ───────────────────────
+function getAllWords(){
   if(!placed.length) return [];
   const rows=placed.map(p=>p[0]),cols=placed.map(p=>p[1]);
   const sameRow=rows.every(r=>r===rows[0]);
-  if(sameRow){
-    const row=rows[0]; let s=Math.min(...cols),e=Math.max(...cols);
-    while(s>0&&gs.board[row][s-1].tile)s--;while(e<N-1&&gs.board[row][e+1].tile)e++;
-    return Array.from({length:e-s+1},(_,i)=>[row,s+i]);
-  } else {
-    const col=cols[0]; let s=Math.min(...rows),e=Math.max(...rows);
-    while(s>0&&gs.board[s-1][col].tile)s--;while(e<N-1&&gs.board[e+1][col].tile)e++;
-    return Array.from({length:e-s+1},(_,i)=>[s+i,col]);
+  const words=[];
+  function hWord(r,c){
+    let s=c,e=c;
+    while(s>0&&gs.board[r][s-1].tile)s--;
+    while(e<N-1&&gs.board[r][e+1].tile)e++;
+    if(s===e)return null;
+    return Array.from({length:e-s+1},(_,i)=>[r,s+i]);
   }
+  function vWord(r,c){
+    let s=r,e=r;
+    while(s>0&&gs.board[s-1][c].tile)s--;
+    while(e<N-1&&gs.board[e+1][c].tile)e++;
+    if(s===e)return null;
+    return Array.from({length:e-s+1},(_,i)=>[s+i,c]);
+  }
+  if(sameRow){
+    const row=rows[0];
+    let s=Math.min(...cols),e=Math.max(...cols);
+    while(s>0&&gs.board[row][s-1].tile)s--;
+    while(e<N-1&&gs.board[row][e+1].tile)e++;
+    const main=Array.from({length:e-s+1},(_,i)=>[row,s+i]);
+    if(main.length>1) words.push(main);
+    for(const [r,c] of placed){ const w=vWord(r,c); if(w) words.push(w); }
+  } else {
+    const col=cols[0];
+    let s=Math.min(...rows),e=Math.max(...rows);
+    while(s>0&&gs.board[s-1][col].tile)s--;
+    while(e<N-1&&gs.board[e+1][col].tile)e++;
+    const main=Array.from({length:e-s+1},(_,i)=>[s+i,col]);
+    if(main.length>1) words.push(main);
+    for(const [r,c] of placed){ const w=hWord(r,c); if(w) words.push(w); }
+  }
+  if(words.length===0) words.push(placed.slice());
+  return words;
+}
+
+function getWordCells(){ const all=getAllWords(); return all.length>0?all[0]:[]; }
+
+// ── Wiktionary Malayalam word check ──────────────────────────────────────────
+const wordCache={};
+async function isMalayalamWord(word){
+  if(word.length<2) return true; // single letters always ok
+  if(wordCache[word]!==undefined) return wordCache[word];
+  try{
+    const url='https://ml.wiktionary.org/w/api.php?action=query&titles='+encodeURIComponent(word)+'&format=json&origin=*';
+    const r=await fetch(url);
+    const d=await r.json();
+    const pages=d.query.pages;
+    const exists=!Object.keys(pages).includes('-1');
+    wordCache[word]=exists;
+    return exists;
+  }catch(e){ return true; } // réseau indisponible → on accepte
 }
 
 function validate(){
@@ -291,18 +337,47 @@ function recallTiles(){
 
 async function confirmWord(){
   const err=validate();if(err){setMsg('❌ '+err);return;}
-  const cells=getWordCells(); const pts=calcScore(cells);
-  const word=cells.map(([r,c])=>gs.board[r][c].tile.l).join('');
+
+  // Récupérer tous les mots formés ce tour
+  const allWords=getAllWords();
+  const wordStrings=allWords.map(cells=>cells.map(([r,c])=>gs.board[r][c].tile.l).join(''));
+
+  // Vérifier chaque mot dans le Wiktionnaire malayalam
+  setMsg('⏳ Vérification des mots…');
+  for(const word of wordStrings){
+    if(word.length<2) continue;
+    const valid=await isMalayalamWord(word);
+    if(!valid){
+      setMsg(`❌ "${word}" n'est pas un mot malayalam valide !`);
+      return;
+    }
+  }
+
+  // Calculer le score total (tous les mots)
+  let totalPts=0;
+  for(const cells of allWords) totalPts+=scoreWord(cells);
+  // Bonus bingo : 50 pts si 7 lettres posées d'un coup
+  if(placed.length===7) totalPts+=50;
+
+  const mainWord=wordStrings[0]||'';
+  const extraWords=wordStrings.slice(1);
+
   for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(gs.board[r][c].tile)gs.board[r][c].locked=true;
-  gs[myRole].score=(gs[myRole].score||0)+pts;
+  gs[myRole].score=(gs[myRole].score||0)+totalPts;
   placed=[];selected=null;
   const need=7-gs[myRole].rack.length;
   gs[myRole].rack.push(...gs.bag.splice(0,Math.min(need,gs.bag.length)));
   const opp=myRole==='p1'?'p2':'p1';
   gs.currentTurn=opp; gs.passCount=0; gs.version=(gs.version||0)+1;
-  gs.message=`${gs[myRole].name} joue "${word}" (+${pts} pts) — Tour de ${gs[opp].name} !`;
+
+  let detail=`"${mainWord}"`;
+  if(extraWords.length>0) detail+=` + ${extraWords.map(w=>`"${w}"`).join(' + ')}`;
+  gs.message=`${gs[myRole].name} joue ${detail} (+${totalPts} pts) — Tour de ${gs[opp].name} !`;
   await api('POST',`/update/${gameCode}`,{state:gs});
-  renderAll(); setMsg(`✅ "${word}" — +${pts} pts ! En attente…`);
+  renderAll();
+  let successMsg=`✅ ${detail} — +${totalPts} pts !`;
+  if(placed.length===0&&totalPts>=50) successMsg+=' 🎉 Bingo !';
+  setMsg(successMsg+' En attente…');
 }
 
 async function passTurn(){
