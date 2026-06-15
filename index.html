@@ -342,13 +342,13 @@ async function confirmWord(){
   const allWords=getAllWords();
   const wordStrings=allWords.map(cells=>cells.map(([r,c])=>gs.board[r][c].tile.l).join(''));
 
-  // Vérifier chaque mot dans le Wiktionnaire malayalam
-  setMsg('⏳ Vérification des mots…');
-  for(const word of wordStrings){
-    if(word.length<2) continue;
-    const valid=await isMalayalamWord(word);
+  // Vérifier UNIQUEMENT le mot principal dans le Wiktionnaire malayalam
+  setMsg('⏳ Vérification du mot…');
+  const mainWord2=wordStrings[0]||'';
+  if(mainWord2.length>=2){
+    const valid=await isMalayalamWord(mainWord2);
     if(!valid){
-      setMsg(`❌ "${word}" n'est pas un mot malayalam valide !`);
+      setMsg(`❌ "${mainWord2}" n'est pas un mot malayalam valide !`);
       return;
     }
   }
