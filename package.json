@@ -1,12 +1,7 @@
 {
   "name": "scrabble-malayalam-online",
-  "version": "1.0.0",
-  "description": "Scrabble Malayalam multijoueur en ligne",
+  "version": "2.0.0",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "ws": "^8.16.0"
-  }
+  "scripts": { "start": "node server.js" },
+  "dependencies": {}
 }
